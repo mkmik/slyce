@@ -1,6 +1,11 @@
 //! Slyce implements a python-like slicer for rust.
 //!
 //! TODO
+//! # Example
+//! ```
+//! use slyce::{Slice, Index};
+//! slyce::Slice{start: 12.into(), end: Index::Default, step: Index::Default};
+//! ```
 
 #![allow(unused_imports)]
 
@@ -68,6 +73,6 @@ mod test {
             step: Default,
         };
         println!("xxx: {:?}", s);
-        assert!(false);
+        assert!(true);
     }
 }
