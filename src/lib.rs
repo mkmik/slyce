@@ -4,7 +4,7 @@
 //! # Example
 //! ```
 //! use slyce::{Slice, Index};
-//! slyce::Slice{start: 12.into(), end: Index::Default, step: Index::Default};
+//! slyce::Slice{start: 12.into(), end: Index::Default, step: None};
 //! ```
 
 #![allow(unused_imports)]
@@ -17,7 +17,7 @@ use std::ops::Bound;
 pub struct Slice {
     pub start: Index,
     pub end: Index,
-    pub step: Index,
+    pub step: Option<isize>,
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +40,7 @@ impl Slice {
         SliceIterator {
             start: Bound::Included(start),
             end: Bound::Excluded(self.end.relative(len).unwrap_or(len)),
-            step: 1,
+            step: self.step.unwrap_or(1),
             cur: start,
         }
     }
@@ -68,7 +68,7 @@ impl Iterator for SliceIterator {
 
     fn next(&mut self) -> Option<usize> {
         let cur = self.cur;
-        self.cur += 1;
+        self.cur = add_delta(self.cur, self.step);
         if match self.end {
             Bound::Excluded(end) => cur < end,
             Bound::Included(end) => cur <= end,
@@ -79,6 +79,10 @@ impl Iterator for SliceIterator {
             None
         }
     }
+}
+
+fn add_delta(n: usize, delta: isize) -> usize {
+    n.wrapping_add(delta as usize)
 }
 
 impl From<usize> for Index {
@@ -125,7 +129,7 @@ mod test {
         const LEN: usize = 5;
 
         fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end, step) = (start.into(), end.into(), step.into());
+            let (start, end) = (start.into(), end.into());
             Slice { start, end, step }.indices(LEN).collect()
         }
 
@@ -136,5 +140,7 @@ mod test {
         assert_eq!(s(None, Some(-2), None), vec![0, 1, 2]);
         assert_eq!(s(Some(-2), Some(-1), None), vec![3]);
         assert_eq!(s(Some(-1), None, None), vec![4]);
+
+        assert_eq!(s(None, None, Some(2)), vec![0, 2, 4]);
     }
 }
