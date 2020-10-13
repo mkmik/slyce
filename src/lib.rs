@@ -13,6 +13,7 @@
 
 use std::ops::Bound;
 
+/// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
 pub struct Slice {
     pub start: Index,
@@ -20,6 +21,10 @@ pub struct Slice {
     pub step: Option<isize>,
 }
 
+/// A position inside an array.
+///
+/// Negative indices are represented with a distinct enumeration variant so that the full index
+/// numeric range (usize) can be utilized without numeric overflows.
 #[derive(Debug, Clone)]
 pub enum Index {
     Positive(usize),
@@ -56,6 +61,7 @@ impl Index {
     }
 }
 
+/// A slice iterator returns index positions for a given range.
 struct SliceIterator {
     start: Bound<usize>,
     end: Bound<usize>,
@@ -81,8 +87,22 @@ impl Iterator for SliceIterator {
     }
 }
 
+/// Add an unsigned integer to an unsigned base.
+///
+/// Uses saturated arithmetic since the array bounds cannot be
+/// bigger than the usize range.
 fn add_delta(n: usize, delta: isize) -> usize {
-    n.wrapping_add(delta as usize)
+    if delta >= 0 {
+        n.saturating_add(delta as usize)
+    } else {
+        let r = n.wrapping_add(delta as usize);
+        // manually saturate to 0 in case of underflow.
+        if r > n {
+            0
+        } else {
+            r
+        }
+    }
 }
 
 impl From<usize> for Index {
