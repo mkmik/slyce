@@ -1,3 +1,7 @@
+//! Slyce implements a python-like slicer for rust.
+//!
+//! TODO
+
 #![allow(unused_imports)]
 
 #[derive(Debug)]
