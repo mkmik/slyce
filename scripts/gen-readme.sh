@@ -1,12 +1,3 @@
-#!/bin/bash
-
-set -eux
-
-(
-cat <<EOF
-![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
-
-EOF
+#!/bin/sh
 
 cargo readme
-) > README.md
