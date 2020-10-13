@@ -35,10 +35,12 @@ pub enum Index {
 use Index::*;
 
 impl Slice {
+    /// Returns an iterator that yields the elements that match the slice expression.
     pub fn apply<'a, T>(self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
         self.indices(arr.len()).map(move |i| &arr[i])
     }
 
+    /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(self, len: usize) -> SliceIterator {
         println!("Indices, abs: {:?}", self.start.abs(len));
         let start = self.start.abs(len).unwrap_or(0);
