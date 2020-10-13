@@ -40,11 +40,11 @@ impl Slice {
     }
 
     fn indices(self, len: usize) -> SliceIterator {
-        println!("Indices, relative: {:?}", self.start.relative(len));
-        let start = self.start.relative(len).unwrap_or(0);
+        println!("Indices, abs: {:?}", self.start.abs(len));
+        let start = self.start.abs(len).unwrap_or(0);
         SliceIterator {
             start: Bound::Included(start),
-            end: Bound::Excluded(self.end.relative(len).unwrap_or(len)),
+            end: Bound::Excluded(self.end.abs(len).unwrap_or(len)),
             step: self.step.unwrap_or(1),
             cur: start,
         }
@@ -52,7 +52,8 @@ impl Slice {
 }
 
 impl Index {
-    fn relative(&self, len: usize) -> Option<usize> {
+    /// absolute index. negative indices are added to len.
+    fn abs(&self, len: usize) -> Option<usize> {
         match self {
             &Positive(n) => Some(len.min(n)),
             &Negative(n) => Some(len.saturating_sub(n)),
