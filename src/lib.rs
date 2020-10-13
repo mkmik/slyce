@@ -8,15 +8,19 @@
 //! ```
 
 #![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
 
-#[derive(Debug)]
+use std::ops::Bound;
+
+#[derive(Debug, Clone)]
 pub struct Slice {
     pub start: Index,
     pub end: Index,
     pub step: Index,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Index {
     Positive(usize),
     Negative(usize),
@@ -24,6 +28,58 @@ pub enum Index {
 }
 
 use Index::*;
+
+impl Slice {
+    pub fn apply<'a, T>(self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
+        self.indices(arr.len()).map(move |i| &arr[i])
+    }
+
+    fn indices(self, len: usize) -> SliceIterator {
+        println!("Indices, relative: {:?}", self.start.relative(len));
+        let start = self.start.relative(len).unwrap_or(0);
+        SliceIterator {
+            start: Bound::Included(start),
+            end: Bound::Excluded(self.end.relative(len).unwrap_or(len)),
+            step: 1,
+            cur: start,
+        }
+    }
+}
+
+impl Index {
+    fn relative(&self, len: usize) -> Option<usize> {
+        match self {
+            &Positive(n) => Some(len.min(n)),
+            &Negative(n) => Some(len.saturating_sub(n)),
+            Default => None,
+        }
+    }
+}
+
+struct SliceIterator {
+    start: Bound<usize>,
+    end: Bound<usize>,
+    step: isize,
+    cur: usize,
+}
+
+impl Iterator for SliceIterator {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        let cur = self.cur;
+        self.cur += 1;
+        if match self.end {
+            Bound::Excluded(end) => cur < end,
+            Bound::Included(end) => cur <= end,
+            Bound::Unbounded => true,
+        } {
+            Some(cur)
+        } else {
+            None
+        }
+    }
+}
 
 impl From<usize> for Index {
     fn from(i: usize) -> Self {
@@ -66,13 +122,19 @@ mod test {
 
     #[test]
     fn demo() {
-        let i0 = Some(-123 as isize);
-        let s = Slice {
-            start: i0.into(),
-            end: Default,
-            step: Default,
-        };
-        println!("xxx: {:?}", s);
-        assert!(true);
+        const LEN: usize = 5;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end, step) = (start.into(), end.into(), step.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(None, None, None), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(Some(1), None, None), vec![1, 2, 3, 4]);
+        assert_eq!(s(None, Some(4), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(None, Some(-1), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(None, Some(-2), None), vec![0, 1, 2]);
+        assert_eq!(s(Some(-2), Some(-1), None), vec![3]);
+        assert_eq!(s(Some(-1), None, None), vec![4]);
     }
 }
