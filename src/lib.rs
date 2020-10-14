@@ -135,19 +135,17 @@ impl Iterator for SliceIterator {
             };
         };
 
-        if {
-            if self.step > 0 {
-                match self.end {
-                    Bound::Excluded(end) => cur < end,
-                    Bound::Included(end) => cur <= end,
-                    Bound::Unbounded => true,
-                }
-            } else {
-                match self.end {
-                    Bound::Excluded(end) => cur > end,
-                    Bound::Included(end) => cur >= end,
-                    Bound::Unbounded => true,
-                }
+        if if self.step > 0 {
+            match self.end {
+                Bound::Excluded(end) => cur < end,
+                Bound::Included(end) => cur <= end,
+                Bound::Unbounded => true,
+            }
+        } else {
+            match self.end {
+                Bound::Excluded(end) => cur > end,
+                Bound::Included(end) => cur >= end,
+                Bound::Unbounded => true,
             }
         } {
             Some(cur)
