@@ -1,3 +1,3 @@
 #!/bin/sh
 
-cargo readme
+cargo readme > README.md

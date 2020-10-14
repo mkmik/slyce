@@ -4,7 +4,10 @@
 //! # Example
 //! ```
 //! use slyce::{Slice, Index};
-//! slyce::Slice{start: 12.into(), end: Index::Default, step: None};
+//! let s = slyce::Slice{start: Index::Negative(3), end: Index::Default, step: None};
+//! let v = vec![10,20,30,40,50];
+//! let it = s.apply(&v);
+//! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[30, 40, 50]");
 //! ```
 
 use std::ops::Bound;
