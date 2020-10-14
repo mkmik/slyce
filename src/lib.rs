@@ -4,10 +4,23 @@
 //! # Example
 //! ```
 //! use slyce::{Slice, Index};
-//! let s = slyce::Slice{start: Index::Negative(3), end: Index::Default, step: None};
 //! let v = vec![10,20,30,40,50];
+//!
+//! let s = slyce::Slice{start: Index::Negative(3), end: Index::Default, step: None};
 //! let it = s.apply(&v);
 //! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[30, 40, 50]");
+//!
+//! let s = slyce::Slice{start: Index::Negative(3), end: Index::Default, step: Some(-1)};
+//! let it = s.apply(&v);
+//! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[30, 20, 10]");
+//!
+//! let s = slyce::Slice{start: Index::Positive(4), end: Index::Positive(0), step: Some(-1)};
+//! let it = s.apply(&v);
+//! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[50, 40, 30, 20]");
+//!
+//! let s = slyce::Slice{start: Index::Default, end: Index::Positive(0), step: Some(-1)};
+//! let it = s.apply(&v);
+//! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[50, 40, 30, 20]");
 //! ```
 
 use std::ops::Bound;
@@ -41,8 +54,12 @@ impl Slice {
 
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(self, len: usize) -> impl Iterator<Item = usize> {
-        let start = self.start.abs(len).unwrap_or(0);
         let step = self.step.unwrap_or(1);
+        let start = (len - 1).min(
+            self.start
+                .abs(len)
+                .unwrap_or(if step >= 0 { 0 } else { len }),
+        );
         let end = self.end.abs(len);
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
@@ -202,5 +219,9 @@ mod test {
         assert_eq!(s(None, Some(isize::MAX), None), vec![0, 1, 2, 3, 4]);
         assert_eq!(s(None, None, Some(100)), vec![0]);
         assert_eq!(s(None, None, Some(isize::MAX)), vec![0]);
+
+        assert_eq!(s(Some(0), Some(6), Some(1)), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(Some(6), Some(0), Some(-1)), vec![4, 3, 2, 1]);
+        assert_eq!(s(None, Some(0), Some(-1)), vec![4, 3, 2, 1]);
     }
 }
