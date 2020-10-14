@@ -87,7 +87,6 @@ impl Slice {
             done: false,
         }
         .fuse()
-        .take(10)
     }
 }
 
