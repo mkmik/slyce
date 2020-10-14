@@ -60,11 +60,10 @@ impl Slice {
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(self, len: usize) -> impl Iterator<Item = usize> {
         let step = self.step.unwrap_or(1);
-        let start = (len - 1).min(
-            self.start
-                .abs(len)
-                .unwrap_or(if step >= 0 { 0 } else { len }),
-        );
+        let start = self
+            .start
+            .abs(len)
+            .unwrap_or(if step >= 0 { 0 } else { len });
         let end = self.end.abs(len);
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
@@ -74,7 +73,7 @@ impl Slice {
         SliceIterator {
             end: end,
             step: step,
-            cur: start,
+            cur: (len - 1).min(start),
             done: false,
         }
         .fuse()
