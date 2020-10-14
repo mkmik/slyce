@@ -81,6 +81,9 @@ impl Slice {
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
         } else {
+            // if iterating backwards, the only way to actually reach the first element of the
+            // array is to use an "included" bound, which the user can only select by setting
+            // end to Item::Default (which arrives here as a None).
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
         SliceIterator {
@@ -123,6 +126,9 @@ impl Iterator for SliceIterator {
         let cur = self.cur;
         self.cur = add_delta(self.cur, self.step);
 
+        // the only way to stop iteration once we hit the "included" bound 0 is to
+        // keep track of the fact and exit in the next iteration. This is because
+        // we use unsigned indices and thus we cannot go lower than 0.
         if let Bound::Included(end) = self.end {
             if cur == end {
                 self.done = true
