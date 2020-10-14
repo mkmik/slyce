@@ -52,7 +52,7 @@ pub struct Slice {
 ///
 /// Tail indices are represented with a distinct enumeration variant so that the full index
 /// numeric range (usize) can be utilized without numeric overflows.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Index {
     /// Position in the array relative to the start of the array (i.e. absolute position).
     Head(usize),
