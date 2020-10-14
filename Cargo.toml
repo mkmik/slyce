@@ -1,11 +1,12 @@
 [package]
 name = "slyce"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Marko Mikulicic <mmikulicic@gmail.com>"]
 edition = "2018"
 description = "Python-like slices"
 license = "BSD-2-Clause"
 repository = "https://github.com/mkmik/slyce/"
+documentation = "https://docs.rs/slyce/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
