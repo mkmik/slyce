@@ -81,8 +81,8 @@ impl Slice {
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
         SliceIterator {
-            end: end,
-            step: step,
+            end,
+            step,
             cur: (len - 1).min(start),
             done: false,
         }
