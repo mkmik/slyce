@@ -43,13 +43,22 @@ impl Slice {
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(self, len: usize) -> impl Iterator<Item = usize> {
         let start = self.start.abs(len).unwrap_or(0);
+        let step = self.step.unwrap_or(1);
+        let end = self.end.abs(len);
+        let end = if step >= 0 {
+            Bound::Excluded(end.unwrap_or(len))
+        } else {
+            end.map_or(Bound::Included(0), Bound::Excluded)
+        };
         SliceIterator {
             start: Bound::Included(start),
-            end: Bound::Excluded(self.end.abs(len).unwrap_or(len)),
-            step: self.step.unwrap_or(1),
+            end: end,
+            step: step,
             cur: start,
+            done: false,
         }
         .fuse()
+        .take(10)
     }
 }
 
@@ -70,19 +79,29 @@ struct SliceIterator {
     end: Bound<usize>,
     step: isize,
     cur: usize,
+    done: bool,
 }
 
 impl Iterator for SliceIterator {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        println!("NEXT {:?} < {:?} ?", self.cur, self.end);
-        if self.step == 0 {
+        println!(
+            "NEXT {:?} <==> {:?} step {:?} ?",
+            self.cur, self.end, self.step
+        );
+        if self.step == 0 || self.done {
             return None;
         };
 
         let cur = self.cur;
         self.cur = add_delta(self.cur, self.step);
+
+        if let Bound::Included(end) = self.end {
+            if cur == end {
+                self.done = true
+            };
+        };
 
         if if self.step > 0 {
             match self.end {
@@ -184,5 +203,6 @@ mod test {
 
         println!("UNSTABLE:");
         assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
+        assert_eq!(s(Some(4), None, Some(-1)), vec![4, 3, 2, 1, 0]);
     }
 }
