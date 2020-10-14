@@ -7,10 +7,6 @@
 //! slyce::Slice{start: 12.into(), end: Index::Default, step: None};
 //! ```
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use std::ops::Bound;
 
 /// A slice has an optional start, an optional end, and an optional step.
@@ -51,7 +47,6 @@ impl Slice {
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
         SliceIterator {
-            start: Bound::Included(start),
             end: end,
             step: step,
             cur: start,
@@ -75,7 +70,6 @@ impl Index {
 
 /// A slice iterator returns index positions for a given range.
 struct SliceIterator {
-    start: Bound<usize>,
     end: Bound<usize>,
     step: isize,
     cur: usize,
@@ -86,10 +80,6 @@ impl Iterator for SliceIterator {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        println!(
-            "NEXT {:?} <==> {:?} step {:?} ?",
-            self.cur, self.end, self.step
-        );
         if self.step == 0 || self.done {
             return None;
         };
@@ -201,8 +191,13 @@ mod test {
 
         assert_eq!(s(None, None, Some(2)), vec![0, 2, 4]);
 
-        println!("UNSTABLE:");
         assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
         assert_eq!(s(Some(4), None, Some(-1)), vec![4, 3, 2, 1, 0]);
+        assert_eq!(s(Some(4), None, Some(0)), vec![]);
+
+        assert_eq!(s(Some(isize::MIN + 1), None, None), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(None, Some(isize::MAX), None), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(None, None, Some(100)), vec![0]);
+        assert_eq!(s(None, None, Some(isize::MAX)), vec![0]);
     }
 }
