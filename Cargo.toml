@@ -10,7 +10,9 @@ repository = "https://github.com/mkmik/slyce/"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 exclude = [
-    ".github"
+    ".github",
+    "scripts/gen-readme.sh",
+    "README.tpl",
 ]
 
 [dependencies]
