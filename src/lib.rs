@@ -83,22 +83,19 @@ impl Iterator for SliceIterator {
 
         let cur = self.cur;
         self.cur = add_delta(self.cur, self.step);
-        if match self.end {
-            Bound::Excluded(end) => {
-                if self.step >= 0 {
-                    cur < end
-                } else {
-                    cur > end
-                }
+
+        if if self.step > 0 {
+            match self.end {
+                Bound::Excluded(end) => cur < end,
+                Bound::Included(end) => cur <= end,
+                Bound::Unbounded => true,
             }
-            Bound::Included(end) => {
-                if self.step >= 0 {
-                    cur <= end
-                } else {
-                    cur >= end
-                }
+        } else {
+            match self.end {
+                Bound::Excluded(end) => cur > end,
+                Bound::Included(end) => cur >= end,
+                Bound::Unbounded => true,
             }
-            Bound::Unbounded => true,
         } {
             Some(cur)
         } else {
