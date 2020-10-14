@@ -1,7 +1,7 @@
 //! Slyce implements a python-like slicer for rust.
 //!
-//! Indices can be addressed as absolute positions or relatively to the end of the array (Tail).
-//! Out of bound indices are simply omitted.
+//! Indices can be addressed as absolute positions or relative to the end of the array (Tail).
+//! Out of bound indices are ignored.
 //!
 //! Slice indices are represented with an enum that wraps the full `usize` range, but also
 //! captures the possibility of a "negative" or "backward" index.
@@ -38,6 +38,7 @@
 //! assert_eq!(render(s), "[10, 20, 30, 40, 50]");
 //! ```
 
+use std::default::Default;
 use std::ops::Bound;
 
 /// A slice has an optional start, an optional end, and an optional step.
@@ -66,12 +67,12 @@ use Index::*;
 
 impl Slice {
     /// Returns an iterator that yields the elements that match the slice expression.
-    pub fn apply<'a, T>(self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
+    pub fn apply<'a, T>(&self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
         self.indices(arr.len()).map(move |i| &arr[i])
     }
 
     /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(self, len: usize) -> impl Iterator<Item = usize> {
+    fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
         let step = self.step.unwrap_or(1);
         let start = self
             .start
@@ -227,6 +228,12 @@ where
 {
     fn from(i: Option<U>) -> Self {
         i.map_or(Default, Into::into)
+    }
+}
+
+impl Default for Index {
+    fn default() -> Self {
+        Index::Default
     }
 }
 
