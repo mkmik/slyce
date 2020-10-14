@@ -86,12 +86,7 @@ impl Slice {
             // end to Item::Default (which arrives here as a None).
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
-        SliceIterator {
-            end,
-            step,
-            cur: (len - 1).min(start),
-            done: false,
-        }
+        SliceIterator::new((len - 1).min(start), end, step)
     }
 }
 
@@ -112,6 +107,17 @@ struct SliceIterator {
     step: isize,
     cur: usize,
     done: bool,
+}
+
+impl SliceIterator {
+    fn new(start: usize, end: Bound<usize>, step: isize) -> Self {
+        SliceIterator {
+            cur: start,
+            end,
+            step,
+            done: false,
+        }
+    }
 }
 
 impl Iterator for SliceIterator {
