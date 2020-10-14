@@ -15,15 +15,15 @@
 //! let it = s.apply(&v);
 //! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[30, 40, 50]");
 //!
-//! let s = slyce::Slice{start: Index::Negative(3), end: Index::Default, step: Some(-1)};
+//! let s = slyce::Slice{start: Index::Tail(3), end: Index::Default, step: Some(-1)};
 //! let it = s.apply(&v);
 //! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[30, 20, 10]");
 //!
-//! let s = slyce::Slice{start: Index::Positive(4), end: Index::Positive(0), step: Some(-1)};
+//! let s = slyce::Slice{start: Index::Head(4), end: Index::Head(0), step: Some(-1)};
 //! let it = s.apply(&v);
 //! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[50, 40, 30, 20]");
 //!
-//! let s = slyce::Slice{start: Index::Default, end: Index::Positive(0), step: Some(-1)};
+//! let s = slyce::Slice{start: Index::Default, end: Index::Head(0), step: Some(-1)};
 //! let it = s.apply(&v);
 //! assert_eq!(format!("{:?}", it.collect::<Vec<_>>()), "[50, 40, 30, 20]");
 //! ```
@@ -40,12 +40,12 @@ pub struct Slice {
 
 /// A position inside an array.
 ///
-/// Negative indices are represented with a distinct enumeration variant so that the full index
+/// Tail indices are represented with a distinct enumeration variant so that the full index
 /// numeric range (usize) can be utilized without numeric overflows.
 #[derive(Debug, Clone)]
 pub enum Index {
-    Positive(usize),
-    Negative(usize),
+    Head(usize),
+    Tail(usize),
     Default,
 }
 
@@ -86,8 +86,8 @@ impl Index {
     /// absolute index. negative indices are added to len.
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
-            &Positive(n) => Some(len.min(n)),
-            &Negative(n) => Some(len.saturating_sub(n)),
+            &Head(n) => Some(len.min(n)),
+            &Tail(n) => Some(len.saturating_sub(n)),
             Default => None,
         }
     }
@@ -158,16 +158,16 @@ fn add_delta(n: usize, delta: isize) -> usize {
 
 impl From<usize> for Index {
     fn from(i: usize) -> Self {
-        Positive(i)
+        Head(i)
     }
 }
 
 impl From<isize> for Index {
     fn from(i: isize) -> Self {
         if i < 0 {
-            Negative(-i as usize)
+            Tail(-i as usize)
         } else {
-            Positive(i as usize)
+            Head(i as usize)
         }
     }
 }
@@ -175,9 +175,9 @@ impl From<isize> for Index {
 impl From<i32> for Index {
     fn from(i: i32) -> Self {
         if i < 0 {
-            Negative(-i as usize)
+            Tail(-i as usize)
         } else {
-            Positive(i as usize)
+            Head(i as usize)
         }
     }
 }
