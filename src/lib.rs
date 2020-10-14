@@ -86,7 +86,7 @@ impl Slice {
             // end to Item::Default (which arrives here as a None).
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
-        SliceIterator::new((len - 1).min(start), end, step)
+        RangeIterator::new((len - 1).min(start), end, step)
     }
 }
 
@@ -101,26 +101,51 @@ impl Index {
     }
 }
 
-/// A slice iterator returns index positions for a given range.
-struct SliceIterator {
+/// An iterator that counts from an initial number up to a (included or excluded) final limit.
+/// The direction and stride of the iteration can be controlled by the step parameter.
+/// A zero step produces an empty iteration.
+struct RangeIterator {
     end: Bound<usize>,
     step: isize,
-    cur: usize,
+    pos: usize,
     done: bool,
+    dir: Direction,
 }
 
-impl SliceIterator {
+impl RangeIterator {
     fn new(start: usize, end: Bound<usize>, step: isize) -> Self {
-        SliceIterator {
-            cur: start,
+        RangeIterator {
+            pos: start,
             end,
             step,
             done: false,
+            dir: if step >= 0 {
+                Direction::Forwards
+            } else {
+                Direction::Backwards
+            },
         }
     }
 }
 
-impl Iterator for SliceIterator {
+// Iteration direction, knows how to compare the limit index.
+enum Direction {
+    Forwards,
+    Backwards,
+}
+
+use Direction::*;
+
+impl Direction {
+    fn is_in_range(&self, pos: usize, end: usize) -> bool {
+        match self {
+            Forwards => pos < end,
+            Backwards => pos > end,
+        }
+    }
+}
+
+impl Iterator for RangeIterator {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
@@ -128,32 +153,24 @@ impl Iterator for SliceIterator {
             return None;
         };
 
-        let cur = self.cur;
-        self.cur = add_delta(self.cur, self.step);
+        let pos = self.pos;
+        self.pos = add_delta(self.pos, self.step);
 
         // the only way to stop iteration once we hit the "included" bound 0 is to
         // keep track of the fact and exit in the next iteration. This is because
         // we use unsigned indices and thus we cannot go lower than 0.
         if let Bound::Included(end) = self.end {
-            if cur == end {
+            if pos == end {
                 self.done = true
             };
         };
 
-        if if self.step > 0 {
-            match self.end {
-                Bound::Excluded(end) => cur < end,
-                Bound::Included(end) => cur <= end,
-                Bound::Unbounded => true,
-            }
-        } else {
-            match self.end {
-                Bound::Excluded(end) => cur > end,
-                Bound::Included(end) => cur >= end,
-                Bound::Unbounded => true,
-            }
+        if match self.end {
+            Bound::Excluded(end) => self.dir.is_in_range(pos, end),
+            Bound::Included(end) => self.dir.is_in_range(pos, end) || pos == end,
+            Bound::Unbounded => true,
         } {
-            Some(cur)
+            Some(pos)
         } else {
             None
         }
