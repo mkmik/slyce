@@ -41,8 +41,7 @@ impl Slice {
     }
 
     /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(self, len: usize) -> SliceIterator {
-        println!("Indices, abs: {:?}", self.start.abs(len));
+    fn indices(self, len: usize) -> impl Iterator<Item = usize> {
         let start = self.start.abs(len).unwrap_or(0);
         SliceIterator {
             start: Bound::Included(start),
@@ -50,6 +49,7 @@ impl Slice {
             step: self.step.unwrap_or(1),
             cur: start,
         }
+        .fuse()
     }
 }
 
@@ -76,11 +76,28 @@ impl Iterator for SliceIterator {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
+        println!("NEXT {:?} < {:?} ?", self.cur, self.end);
+        if self.step == 0 {
+            return None;
+        };
+
         let cur = self.cur;
         self.cur = add_delta(self.cur, self.step);
         if match self.end {
-            Bound::Excluded(end) => cur < end,
-            Bound::Included(end) => cur <= end,
+            Bound::Excluded(end) => {
+                if self.step >= 0 {
+                    cur < end
+                } else {
+                    cur > end
+                }
+            }
+            Bound::Included(end) => {
+                if self.step >= 0 {
+                    cur <= end
+                } else {
+                    cur >= end
+                }
+            }
             Bound::Unbounded => true,
         } {
             Some(cur)
@@ -157,6 +174,8 @@ mod test {
         }
 
         assert_eq!(s(None, None, None), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(Some(0), Some(5), None), vec![0, 1, 2, 3, 4]);
+        assert_eq!(s(Some(0), Some(4), None), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(1), None, None), vec![1, 2, 3, 4]);
         assert_eq!(s(None, Some(4), None), vec![0, 1, 2, 3]);
         assert_eq!(s(None, Some(-1), None), vec![0, 1, 2, 3]);
@@ -165,5 +184,8 @@ mod test {
         assert_eq!(s(Some(-1), None, None), vec![4]);
 
         assert_eq!(s(None, None, Some(2)), vec![0, 2, 4]);
+
+        println!("UNSTABLE:");
+        assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
     }
 }
