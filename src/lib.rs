@@ -54,8 +54,11 @@ pub struct Slice {
 /// numeric range (usize) can be utilized without numeric overflows.
 #[derive(Debug, Clone)]
 pub enum Index {
+    /// Position in the array relative to the start of the array (i.e. absolute position).
     Head(usize),
+    /// Position in the array relative to the end of the array.
     Tail(usize),
+    /// Either the first or the last element of the array, depending on the sign of `step`.
     Default,
 }
 

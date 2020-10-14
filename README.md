@@ -42,6 +42,6 @@ let s = slyce::Slice{start: Index::Tail(1000), end: 2000.into(), step: None};
 assert_eq!(render(s), "[10, 20, 30, 40, 50]");
 ```
 
-Current version: 0.1.2
+Current version: 0.1.3
 
 License: BSD-2-Clause
