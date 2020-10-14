@@ -92,7 +92,6 @@ impl Slice {
             cur: (len - 1).min(start),
             done: false,
         }
-        .fuse()
     }
 }
 
