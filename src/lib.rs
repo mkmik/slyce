@@ -80,7 +80,7 @@ impl Slice {
         let start = self
             .start
             .abs(len)
-            .unwrap_or(if step >= 0 { 0 } else { len });
+            .unwrap_or(if step >= 0 { 0 } else { len - 1 });
         let end = self.end.abs(len);
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
@@ -90,7 +90,7 @@ impl Slice {
             // end to Item::Default (which arrives here as a None).
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
-        RangeIterator::new((len - 1).min(start), end, step)
+        RangeIterator::new(start, end, step)
     }
 }
 
@@ -105,9 +105,9 @@ impl Index {
     }
 }
 
-/// Return Some(n) if min <= n <= max, otherwise return None.
+/// Return Some(n) if min <= n < max, otherwise return None.
 fn ensure_within(min: usize, n: usize, max: usize) -> Option<usize> {
-    if min <= n && n <= max {
+    if min <= n && n < max {
         Some(n)
     } else {
         None
