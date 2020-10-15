@@ -107,10 +107,10 @@ impl Index {
 
 /// Return Some(n) if min <= n <= max, otherwise return None.
 fn ensure_within(min: usize, n: usize, max: usize) -> Option<usize> {
-    if n < min || max < n {
-        None
-    } else {
+    if min <= n && n <= max {
         Some(n)
+    } else {
+        None
     }
 }
 
