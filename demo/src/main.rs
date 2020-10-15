@@ -7,7 +7,7 @@ use nom::{
     sequence::tuple,
     IResult,
 };
-use serde_json;
+
 use slyce::{Index, Slice};
 use std::env;
 use std::io;
@@ -44,7 +44,7 @@ fn parse_slice(input: &str) -> IResult<&str, Slice> {
         Slice {
             start: start.into(),
             end: end.into(),
-            step: step.into(),
+            step,
         },
     ))
 }
