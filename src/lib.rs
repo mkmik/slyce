@@ -99,7 +99,13 @@ impl Index {
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
             &Head(n) => Some(len.min(n)),
-            &Tail(n) => Some(len.saturating_sub(n)),
+            &Tail(n) => {
+                if len < n {
+                    None
+                } else {
+                    Some(len - n)
+                }
+            }
             Default => None,
         }
     }
@@ -295,6 +301,7 @@ mod test {
         }
 
         assert_eq!(s(None, None, Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(2), Some(-113667776004), Some(-1)), vec![2, 1, 0]);
     }
 
     #[test]
