@@ -39,7 +39,7 @@
 //! ```
 
 use std::default::Default;
-use std::ops::Bound;
+use std::ops::{Bound, Range};
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
@@ -80,7 +80,7 @@ impl Slice {
         let start = self
             .start
             .abs(len)
-            .unwrap_or(if step >= 0 { 0 } else { len });
+            .unwrap_or(if step >= 0 { 0 } else { len - 1 });
         let end = self.end.abs(len);
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
@@ -90,7 +90,7 @@ impl Slice {
             // end to Item::Default (which arrives here as a None).
             end.map_or(Bound::Included(0), Bound::Excluded)
         };
-        RangeIterator::new((len - 1).min(start), end, step)
+        RangeIterator::new(start, end, step)
     }
 }
 
@@ -98,16 +98,19 @@ impl Index {
     /// absolute index. negative indices are added to len.
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
-            &Head(n) => Some(len.min(n)),
-            &Tail(n) => {
-                if len < n {
-                    None
-                } else {
-                    Some(len - n)
-                }
-            }
+            &Head(n) => ensure_within(n, 0..len),
+            &Tail(n) => ensure_within(n, 0..len).map(|n| len - n),
             Default => None,
         }
+    }
+}
+
+/// Return Some(n) if r.start <= n < r.end, otherwise return None.
+fn ensure_within(n: usize, r: Range<usize>) -> Option<usize> {
+    if r.contains(&n) {
+        Some(n)
+    } else {
+        None
     }
 }
 
