@@ -73,6 +73,9 @@ impl Slice {
 
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
+        if len == 0 {
+            return RangeIterator::new(0, Bound::Excluded(0), 0);
+        }
         let step = self.step.unwrap_or(1);
         let start = self
             .start
@@ -96,7 +99,13 @@ impl Index {
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
             &Head(n) => Some(len.min(n)),
-            &Tail(n) => Some(len.saturating_sub(n)),
+            &Tail(n) => {
+                if len < n {
+                    None
+                } else {
+                    Some(len - n)
+                }
+            }
             Default => None,
         }
     }
@@ -105,6 +114,7 @@ impl Index {
 /// An iterator that counts from an initial number up to a (included or excluded) final limit.
 /// The direction and stride of the iteration can be controlled by the step parameter.
 /// A zero step produces an empty iteration.
+#[derive(Debug)]
 struct RangeIterator {
     end: Bound<usize>,
     step: isize,
@@ -130,6 +140,7 @@ impl RangeIterator {
 }
 
 // Iteration direction, knows how to compare the limit index.
+#[derive(Debug)]
 enum Direction {
     Forwards,
     Backwards,
@@ -155,7 +166,9 @@ impl Iterator for RangeIterator {
         };
 
         let pos = self.pos;
-        self.pos = add_delta(self.pos, self.step);
+        let new_pos = add_delta(self.pos, self.step);
+        self.pos = new_pos.unwrap_or_default();
+        self.done = new_pos.is_none();
 
         // the only way to stop iteration once we hit the "included" bound 0 is to
         // keep track of the fact and exit in the next iteration. This is because
@@ -168,7 +181,7 @@ impl Iterator for RangeIterator {
 
         if match self.end {
             Bound::Excluded(end) => self.dir.is_in_range(pos, end),
-            Bound::Included(end) => self.dir.is_in_range(pos, end) || pos == end,
+            Bound::Included(end) => self.dir.is_in_range(pos, end) || self.done,
             Bound::Unbounded => true,
         } {
             Some(pos)
@@ -182,16 +195,18 @@ impl Iterator for RangeIterator {
 ///
 /// Uses saturated arithmetic since the array bounds cannot be
 /// bigger than the usize range.
-fn add_delta(n: usize, delta: isize) -> usize {
+///
+/// Returns None on underflow.
+fn add_delta(n: usize, delta: isize) -> Option<usize> {
     if delta >= 0 {
-        n.saturating_add(delta as usize)
+        Some(n.saturating_add(delta as usize))
     } else {
         let r = n.wrapping_add(delta as usize);
-        // manually saturate to 0 in case of underflow.
+        // return any underflow.
         if r > n {
-            0
+            None
         } else {
-            r
+            Some(r)
         }
     }
 }
@@ -274,5 +289,30 @@ mod test {
         assert_eq!(s(Some(0), Some(6), Some(1)), vec![0, 1, 2, 3, 4]);
         assert_eq!(s(Some(6), Some(0), Some(-1)), vec![4, 3, 2, 1]);
         assert_eq!(s(None, Some(0), Some(-1)), vec![4, 3, 2, 1]);
+    }
+
+    #[test]
+    fn backwards() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(None, None, Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(2), Some(-113667776004), Some(-1)), vec![2, 1, 0]);
+    }
+
+    #[test]
+    fn empty_array() {
+        const LEN: usize = 0;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(None, None, None), vec![]);
     }
 }
