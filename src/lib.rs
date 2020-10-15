@@ -73,6 +73,9 @@ impl Slice {
 
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
+        if len == 0 {
+            return RangeIterator::new(0, Bound::Excluded(0), 0);
+        }
         let step = self.step.unwrap_or(1);
         let start = self
             .start
@@ -283,7 +286,7 @@ mod test {
     }
 
     #[test]
-    fn even() {
+    fn backwards() {
         const LEN: usize = 4;
 
         fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
@@ -292,5 +295,17 @@ mod test {
         }
 
         assert_eq!(s(None, None, Some(-2)), vec![3, 1]);
+    }
+
+    #[test]
+    fn empty_array() {
+        const LEN: usize = 0;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(None, None, None), vec![]);
     }
 }
