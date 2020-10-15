@@ -39,7 +39,7 @@
 //! ```
 
 use std::default::Default;
-use std::ops::Bound;
+use std::ops::{Bound, Range};
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
@@ -98,16 +98,16 @@ impl Index {
     /// absolute index. negative indices are added to len.
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
-            &Head(n) => ensure_within(0, n, len),
-            &Tail(n) => ensure_within(0, n, len).map(|n| len - n),
+            &Head(n) => ensure_within(n, 0..len),
+            &Tail(n) => ensure_within(n, 0..len).map(|n| len - n),
             Default => None,
         }
     }
 }
 
-/// Return Some(n) if min <= n < max, otherwise return None.
-fn ensure_within(min: usize, n: usize, max: usize) -> Option<usize> {
-    if min <= n && n < max {
+/// Return Some(n) if r.start <= n < r.end, otherwise return None.
+fn ensure_within(n: usize, r: Range<usize>) -> Option<usize> {
+    if r.contains(&n) {
         Some(n)
     } else {
         None
