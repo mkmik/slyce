@@ -99,7 +99,7 @@ impl Index {
     fn abs(&self, len: usize) -> Option<usize> {
         match self {
             &Head(n) => ensure_within(n, 0..len),
-            &Tail(n) => ensure_within(n, 0..len).map(|n| len - n),
+            &Tail(n) => ensure_within(n, 1..len + 1).map(|n| len - n),
             Default => None,
         }
     }
@@ -282,6 +282,9 @@ mod test {
 
         assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
         assert_eq!(s(Some(4), None, Some(-1)), vec![4, 3, 2, 1, 0]);
+        assert_eq!(s(Some(4), Some(-6), Some(-1)), vec![4, 3, 2, 1, 0]);
+        assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
+        assert_eq!(s(Some(4), Some(-5), Some(-1)), vec![4, 3, 2, 1]);
         assert_eq!(s(Some(4), None, Some(0)), vec![]);
 
         assert_eq!(s(Some(isize::MIN + 1), None, None), vec![0, 1, 2, 3, 4]);
@@ -317,5 +320,27 @@ mod test {
         }
 
         assert_eq!(s(None, None, None), vec![]);
+    }
+
+    #[test]
+    fn ensure() {
+        assert_eq!(ensure_within(0, 0..3), Some(0));
+        assert_eq!(ensure_within(1, 0..3), Some(1));
+        assert_eq!(ensure_within(2, 0..3), Some(2));
+        assert_eq!(ensure_within(3, 0..3), None);
+        assert_eq!(ensure_within(4, 0..3), None);
+    }
+
+    #[test]
+    fn abs() {
+        assert_eq!(Index::Head(0).abs(3), Some(0));
+        assert_eq!(Index::Head(1).abs(3), Some(1));
+        assert_eq!(Index::Head(2).abs(3), Some(2));
+        assert_eq!(Index::Head(3).abs(3), None);
+
+        assert_eq!(Index::Tail(1).abs(3), Some(2));
+        assert_eq!(Index::Tail(2).abs(3), Some(1));
+        assert_eq!(Index::Tail(3).abs(3), Some(0));
+        assert_eq!(Index::Tail(4).abs(3), None);
     }
 }
