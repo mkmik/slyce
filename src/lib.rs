@@ -44,6 +44,7 @@ use std::ops::{Bound, Range};
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Slice {
     pub start: Index,
     pub end: Index,
@@ -67,6 +68,7 @@ impl fmt::Display for Slice {
 /// Tail indices are represented with a distinct enumeration variant so that the full index
 /// numeric range (usize) can be utilized without numeric overflows.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Index {
     /// Position in the array relative to the start of the array (i.e. absolute position).
     Head(usize),
