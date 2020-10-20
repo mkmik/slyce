@@ -18,7 +18,23 @@ fn parse(input: &str) -> io::Result<Slice> {
         .map(|v| v.1)
 }
 
-fn parse_index(input: &str) -> IResult<&str, Option<isize>> {
+fn parse_index(input: &str) -> IResult<&str, Index> {
+    let (input, sign) = opt(char('-'))(input)?;
+    let (input, digits) = opt(map_res(digit1, |s: &str| s.parse::<usize>()))(input)?;
+
+    Ok((
+        input,
+        match digits {
+            Some(d) => match sign {
+                Some(_) => Index::Tail(d),
+                None => Index::Head(d),
+            },
+            None => Index::Default,
+        },
+    ))
+}
+
+fn parse_step(input: &str) -> IResult<&str, Option<isize>> {
     let (input, sign) = opt(char('-'))(input)?;
     let (input, digits) = opt(map_res(digit1, |s: &str| s.parse::<isize>()))(input)?;
     Ok((
@@ -36,17 +52,10 @@ fn parse_slice(input: &str) -> IResult<&str, Slice> {
     let (input, _) = char(':')(input)?;
     let (input, end) = parse_index(input)?;
     let (input, _) = char(':')(input)?;
-    let (input, step) = parse_index(input)?;
+    let (input, step) = parse_step(input)?;
     let (input, _) = char(']')(input)?;
 
-    Ok((
-        input,
-        Slice {
-            start: start.into(),
-            end: end.into(),
-            step,
-        },
-    ))
+    Ok((input, Slice { start, end, step }))
 }
 
 fn main() -> io::Result<()> {
