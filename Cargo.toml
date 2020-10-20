@@ -17,3 +17,4 @@ exclude = [
 ]
 
 [dependencies]
+arbitrary = { version = "0.4.7", optional = true, features = ["derive"] }

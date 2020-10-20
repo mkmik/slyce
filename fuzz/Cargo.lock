@@ -10,6 +10,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc"
+version = "1.0.61"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed67cbde08356238e75fc4656be4749481eeffb09e19f320a25237d5221c985d"
+
+[[package]]
 name = "derive_arbitrary"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18,6 +24,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "libfuzzer-sys"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee8c42ab62f43795ed77a965ed07994c5584cdc94fd0ebf14b22ac1524077acc"
+dependencies = [
+ "arbitrary",
+ "cc",
 ]
 
 [[package]]
@@ -43,6 +59,14 @@ name = "slyce"
 version = "0.2.1"
 dependencies = [
  "arbitrary",
+]
+
+[[package]]
+name = "slyce-fuzz"
+version = "0.0.0"
+dependencies = [
+ "libfuzzer-sys",
+ "slyce",
 ]
 
 [[package]]

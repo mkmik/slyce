@@ -39,14 +39,28 @@
 //! ```
 
 use std::default::Default;
+use std::fmt;
 use std::ops::{Bound, Range};
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Slice {
     pub start: Index,
     pub end: Index,
     pub step: Option<isize>,
+}
+
+impl fmt::Display for Slice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}:{}:{}]",
+            self.start,
+            self.end,
+            self.step.map_or("".to_string(), |n| n.to_string())
+        )
+    }
 }
 
 /// A position inside an array.
@@ -54,6 +68,7 @@ pub struct Slice {
 /// Tail indices are represented with a distinct enumeration variant so that the full index
 /// numeric range (usize) can be utilized without numeric overflows.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Index {
     /// Position in the array relative to the start of the array (i.e. absolute position).
     Head(usize),
@@ -64,6 +79,16 @@ pub enum Index {
 }
 
 use Index::*;
+
+impl fmt::Display for Index {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Head(n) => write!(f, "{}", n),
+            Tail(n) => write!(f, "-{}", n),
+            Default => write!(f, ""),
+        }
+    }
+}
 
 impl Slice {
     /// Returns an iterator that yields the elements that match the slice expression.
@@ -342,5 +367,23 @@ mod test {
         assert_eq!(Index::Tail(2).abs(3), Some(1));
         assert_eq!(Index::Tail(3).abs(3), Some(0));
         assert_eq!(Index::Tail(4).abs(3), None);
+    }
+
+    #[test]
+    fn display() {
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Slice {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }
+        }
+
+        assert_eq!(s(None, None, None).to_string(), "[::]");
+        assert_eq!(s(Some(0), None, None).to_string(), "[0::]");
+        assert_eq!(s(Some(1), None, None).to_string(), "[1::]");
+        assert_eq!(s(Some(-1), None, None).to_string(), "[-1::]");
+        assert_eq!(s(None, Some(0), None).to_string(), "[:0:]");
+        assert_eq!(s(None, Some(1), None).to_string(), "[:1:]");
+        assert_eq!(s(None, Some(-1), None).to_string(), "[:-1:]");
+        assert_eq!(s(None, None, Some(1)).to_string(), "[::1]");
+        assert_eq!(s(None, None, Some(-1)).to_string(), "[::-1]");
     }
 }
