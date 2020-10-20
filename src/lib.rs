@@ -102,11 +102,12 @@ impl Slice {
             return RangeIterator::new(0, Bound::Excluded(0), 0);
         }
         let step = self.step.unwrap_or(1);
+        let dir = Direction::new(step);
         let start = self
             .start
-            .abs(len)
+            .abs(len, &dir)
             .unwrap_or(if step >= 0 { 0 } else { len - 1 });
-        let end = self.end.abs(len);
+        let end = self.end.abs(len, &dir);
         let end = if step >= 0 {
             Bound::Excluded(end.unwrap_or(len))
         } else {
@@ -121,10 +122,14 @@ impl Slice {
 
 impl Index {
     /// absolute index. negative indices are added to len.
-    fn abs(&self, len: usize) -> Option<usize> {
+    fn abs(&self, len: usize, dir: &Direction) -> Option<usize> {
         match self {
             &Head(n) => ensure_within(n, 0..len),
-            &Tail(n) => ensure_within(n, 1..len + 1).map(|n| len - n),
+            // TODO: simplify/cleanup
+            &Tail(n) => match dir {
+                Forwards => Some(len - len.min(n)),
+                Backwards => ensure_within(n, 1..len + 1).map(|n| len - n),
+            },
             Default => None,
         }
     }
@@ -158,11 +163,7 @@ impl RangeIterator {
             end,
             step,
             done: false,
-            dir: if step >= 0 {
-                Direction::Forwards
-            } else {
-                Direction::Backwards
-            },
+            dir: Direction::new(step),
         }
     }
 }
@@ -172,6 +173,16 @@ impl RangeIterator {
 enum Direction {
     Forwards,
     Backwards,
+}
+
+impl Direction {
+    fn new(step: isize) -> Self {
+        if step >= 0 {
+            Direction::Forwards
+        } else {
+            Direction::Backwards
+        }
+    }
 }
 
 use Direction::*;
@@ -320,6 +331,13 @@ mod test {
         assert_eq!(s(Some(0), Some(6), Some(1)), vec![0, 1, 2, 3, 4]);
         assert_eq!(s(Some(6), Some(0), Some(-1)), vec![4, 3, 2, 1]);
         assert_eq!(s(None, Some(0), Some(-1)), vec![4, 3, 2, 1]);
+
+        assert_eq!(s(None, Some(-1), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(None, Some(-2), None), vec![0, 1, 2]);
+        assert_eq!(s(None, Some(-3), None), vec![0, 1]);
+        assert_eq!(s(None, Some(-4), None), vec![0]);
+        assert_eq!(s(None, Some(-5), None), vec![]);
+        assert_eq!(s(None, Some(-6), None), vec![]);
     }
 
     #[test]
@@ -333,6 +351,7 @@ mod test {
 
         assert_eq!(s(None, None, Some(-2)), vec![3, 1]);
         assert_eq!(s(Some(2), Some(-113667776004), Some(-1)), vec![2, 1, 0]);
+        assert_eq!(s(Some(-4), Some(-5), Some(-1)), vec![0]);
     }
 
     #[test]
@@ -358,15 +377,17 @@ mod test {
 
     #[test]
     fn abs() {
-        assert_eq!(Index::Head(0).abs(3), Some(0));
-        assert_eq!(Index::Head(1).abs(3), Some(1));
-        assert_eq!(Index::Head(2).abs(3), Some(2));
-        assert_eq!(Index::Head(3).abs(3), None);
+        assert_eq!(Index::Head(0).abs(3, &Forwards), Some(0));
+        assert_eq!(Index::Head(1).abs(3, &Forwards), Some(1));
+        assert_eq!(Index::Head(2).abs(3, &Forwards), Some(2));
+        assert_eq!(Index::Head(3).abs(3, &Forwards), None);
 
-        assert_eq!(Index::Tail(1).abs(3), Some(2));
-        assert_eq!(Index::Tail(2).abs(3), Some(1));
-        assert_eq!(Index::Tail(3).abs(3), Some(0));
-        assert_eq!(Index::Tail(4).abs(3), None);
+        assert_eq!(Index::Tail(1).abs(3, &Forwards), Some(2));
+        assert_eq!(Index::Tail(2).abs(3, &Forwards), Some(1));
+        assert_eq!(Index::Tail(3).abs(3, &Forwards), Some(0));
+        assert_eq!(Index::Tail(4).abs(3, &Forwards), Some(0));
+
+        assert_eq!(Index::Tail(4).abs(3, &Backwards), None);
     }
 
     #[test]
