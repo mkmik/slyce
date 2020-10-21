@@ -38,6 +38,7 @@
 //! assert_eq!(render(s), "[10, 20, 30, 40, 50]");
 //! ```
 
+use std::borrow::Borrow;
 use std::default::Default;
 use std::fmt;
 use std::ops::RangeInclusive;
@@ -107,7 +108,12 @@ impl Index {
     }
 }
 
-fn clamp<T: Ord + Copy>(n: T, r: &RangeInclusive<T>) -> T {
+fn clamp<T, R>(n: T, r: R) -> T
+where
+    T: Ord + Copy,
+    R: Borrow<RangeInclusive<T>>,
+{
+    let r = r.borrow();
     let (start, end) = (*r.start(), *r.end());
     n.max(start).min(end)
 }
@@ -525,13 +531,12 @@ mod test {
 
     #[test]
     fn test_clamp() {
-        let bounds = 1..=3;
-        assert_eq!(clamp(0, &bounds), 1);
-        assert_eq!(clamp(1, &bounds), 1);
-        assert_eq!(clamp(2, &bounds), 2);
-        assert_eq!(clamp(3, &bounds), 3);
-        assert_eq!(clamp(4, &bounds), 3);
-        assert_eq!(clamp(5, &bounds), 3);
+        assert_eq!(clamp(0, 1..=3), 1);
+        assert_eq!(clamp(1, 1..=3), 1);
+        assert_eq!(clamp(2, 1..=3), 2);
+        assert_eq!(clamp(3, 1..=3), 3);
+        assert_eq!(clamp(4, 1..=3), 3);
+        assert_eq!(clamp(5, 1..=3), 3);
     }
 
     #[test]
