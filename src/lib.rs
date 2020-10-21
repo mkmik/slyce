@@ -40,7 +40,7 @@
 
 use std::default::Default;
 use std::fmt;
-use std::ops::Range;
+use std::ops::RangeInclusive;
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
@@ -131,8 +131,8 @@ struct SSlice {
 
 impl SSlice {
     /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
-        let ilen = len as i128;
+    fn indices(&self, ulen: usize) -> impl Iterator<Item = usize> {
+        let len = ulen as i128;
 
         if len == 0 {
             return Iter {
@@ -145,26 +145,36 @@ impl SSlice {
         let step = self.step.unwrap_or(1);
 
         let (def_start, def_end) = if step >= 0 {
-            (0, ilen)
+            (0, len)
         } else {
-            (ilen - 1, -ilen - 1)
+            (len - 1, -1)
         };
 
-        let shift = if step >= 0 { 0 } else { 1 };
-        let min = 0 - shift;
-        let max = ilen - shift;
+        let (min, max) = if step >= 0 {
+            (def_start, def_end)
+        } else {
+            // when iterating backwards, start becomes the higher bound
+            // and end becomes the lower bound. In order to iterate
+            // down to the 0th index, we must allow -1 as the non
+            // inclusive lower bound (in the same way as we allow "len"
+            // as the upper bound when iterating forward).
+            (def_end, def_start)
+        };
 
-        let abs = |n: i128| if n >= 0 { n } else { ilen + n };
+        // negative slice parameters are relative to the end of the array.
+        let to_index = |n: i128| if n >= 0 { n } else { len + n };
+
         Iter {
-            i: clamp(abs(self.start.unwrap_or(def_start)), min..max),
-            end: clamp(abs(self.end.unwrap_or(def_end)), min..max),
+            i: clamp(self.start.map(to_index).unwrap_or(def_start), min..=max),
+            end: clamp(self.end.map(to_index).unwrap_or(def_end), min..=max),
             step,
         }
     }
 }
 
-fn clamp<T: Ord>(n: T, r: Range<T>) -> T {
-    r.start.max(n).min(r.end)
+fn clamp<T: Ord + Copy>(n: T, r: RangeInclusive<T>) -> T {
+    let (start, end) = (*r.start(), *r.end());
+    n.max(start).min(end)
 }
 
 struct Iter {
@@ -549,6 +559,16 @@ mod test {
 
         assert_eq!(s(None, None, None), vec![]);
         assert_eq!(s(None, None, Some(-1)), vec![]);
+    }
+
+    #[test]
+    fn test_clamp() {
+        assert_eq!(clamp(0, 1..=3), 1);
+        assert_eq!(clamp(1, 1..=3), 1);
+        assert_eq!(clamp(2, 1..=3), 2);
+        assert_eq!(clamp(3, 1..=3), 3);
+        assert_eq!(clamp(4, 1..=3), 3);
+        assert_eq!(clamp(5, 1..=3), 3);
     }
 
     #[test]
