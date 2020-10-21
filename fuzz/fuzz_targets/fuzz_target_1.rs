@@ -14,7 +14,7 @@ fuzz_target!(|input: Input| {
     if input.slice.start == Index::Tail(0) || input.slice.end == Index::Tail(0) {
         return;
     }
-    // python errors is slice is zero, while slyce returns an empty slice. currently this is intentional.
+    // python errors if step is zero, while slyce returns an empty slice. currently this is intentional.
     if input.slice.step == Some(0) {
         return;
     }
