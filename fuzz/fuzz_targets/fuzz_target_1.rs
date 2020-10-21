@@ -1,6 +1,6 @@
 #![no_main]
 use libfuzzer_sys::{arbitrary, fuzz_target};
-use slyce::{Slice, Index};
+use slyce::{Index, Slice};
 use std::process::Command;
 
 #[derive(arbitrary::Arbitrary, Debug)]
@@ -12,6 +12,10 @@ struct Input {
 fuzz_target!(|input: Input| {
     // TODO: find a better way to avoid generating impossible input Tail(0)
     if input.slice.start == Index::Tail(0) || input.slice.end == Index::Tail(0) {
+        return;
+    }
+    // python errors if step is zero, while slyce returns an empty slice. currently this is intentional.
+    if input.slice.step == Some(0) {
         return;
     }
 

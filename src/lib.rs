@@ -40,7 +40,7 @@
 
 use std::default::Default;
 use std::fmt;
-use std::ops::{Bound, Range};
+use std::ops::RangeInclusive;
 
 /// A slice has an optional start, an optional end, and an optional step.
 #[derive(Debug, Clone)]
@@ -90,6 +90,28 @@ impl fmt::Display for Index {
     }
 }
 
+impl Index {
+    /// to_bound transforms an index slice parameter into an array bound.
+    /// An array bound can be -1 in order to represent the exclusive lower
+    /// bound 0.
+    ///
+    /// This impl won't work if size_of<usize> >= 16.
+    /// 64 bits of address space should be enough for everybody.
+    fn to_bound(&self, len: i128, r: &RangeInclusive<i128>) -> Option<i128> {
+        match self {
+            &Head(n) => Some(n as i128),
+            &Tail(n) => Some(len - (n as i128)),
+            Default => None,
+        }
+        .map(|n| clamp(n, r))
+    }
+}
+
+fn clamp<T: Ord + Copy>(n: T, r: &RangeInclusive<T>) -> T {
+    let (start, end) = (*r.start(), *r.end());
+    n.max(start).min(end)
+}
+
 impl Slice {
     /// Returns an iterator that yields the elements that match the slice expression.
     pub fn apply<'a, T>(&self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
@@ -97,155 +119,55 @@ impl Slice {
     }
 
     /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
-        if len == 0 {
-            return RangeIterator::new(0, Bound::Excluded(0), 0);
-        }
+    fn indices(&self, ulen: usize) -> impl Iterator<Item = usize> {
+        let len = ulen as i128;
         let step = self.step.unwrap_or(1);
-        let dir = Direction::new(step);
-        let start = self
-            .start
-            .abs(len, &dir)
-            .unwrap_or(if step >= 0 { 0 } else { len - 1 });
-        let end = self.end.abs(len, &dir);
-        let end = if step >= 0 {
-            Bound::Excluded(end.unwrap_or(len))
-        } else {
-            // if iterating backwards, the only way to actually reach the first element of the
-            // array is to use an "included" bound, which the user can only select by setting
-            // end to Item::Default (which arrives here as a None).
-            end.map_or(Bound::Included(0), Bound::Excluded)
-        };
-        RangeIterator::new(start, end, step)
-    }
-}
 
-impl Index {
-    /// absolute index. negative indices are added to len.
-    fn abs(&self, len: usize, dir: &Direction) -> Option<usize> {
-        match self {
-            &Head(n) => ensure_within(n, 0..len),
-            // TODO: simplify/cleanup
-            &Tail(n) => match dir {
-                Forwards => Some(len - len.min(n)),
-                Backwards => ensure_within(n, 1..len + 1).map(|n| len - n),
-            },
-            Default => None,
+        let (def_start, def_end) = if step >= 0 { (0, len) } else { (len - 1, -1) };
+
+        let bounds = if step >= 0 {
+            def_start..=def_end
+        } else {
+            def_end..=def_start
+        };
+
+        Iter {
+            i: self.start.to_bound(len, &bounds).unwrap_or(def_start),
+            end: self.end.to_bound(len, &bounds).unwrap_or(def_end),
+            step: step as i128,
         }
     }
 }
 
-/// Return Some(n) if r.start <= n < r.end, otherwise return None.
-fn ensure_within(n: usize, r: Range<usize>) -> Option<usize> {
-    if r.contains(&n) {
-        Some(n)
-    } else {
-        None
-    }
+struct Iter {
+    i: i128,
+    end: i128,
+    step: i128,
 }
 
-/// An iterator that counts from an initial number up to a (included or excluded) final limit.
+/// An iterator that counts from an initial number until a final limit.
 /// The direction and stride of the iteration can be controlled by the step parameter.
 /// A zero step produces an empty iteration.
-#[derive(Debug)]
-struct RangeIterator {
-    end: Bound<usize>,
-    step: isize,
-    pos: usize,
-    done: bool,
-    dir: Direction,
-}
-
-impl RangeIterator {
-    fn new(start: usize, end: Bound<usize>, step: isize) -> Self {
-        RangeIterator {
-            pos: start,
-            end,
-            step,
-            done: false,
-            dir: Direction::new(step),
-        }
-    }
-}
-
-// Iteration direction, knows how to compare the limit index.
-#[derive(Debug)]
-enum Direction {
-    Forwards,
-    Backwards,
-}
-
-impl Direction {
-    fn new(step: isize) -> Self {
-        if step >= 0 {
-            Direction::Forwards
-        } else {
-            Direction::Backwards
-        }
-    }
-}
-
-use Direction::*;
-
-impl Direction {
-    fn is_in_range(&self, pos: usize, end: usize) -> bool {
-        match self {
-            Forwards => pos < end,
-            Backwards => pos > end,
-        }
-    }
-}
-
-impl Iterator for RangeIterator {
+impl Iterator for Iter {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        if self.step == 0 || self.done {
+        if self.step == 0 {
             return None;
-        };
-
-        let pos = self.pos;
-        let new_pos = add_delta(self.pos, self.step);
-        self.pos = new_pos.unwrap_or_default();
-        self.done = new_pos.is_none();
-
-        // the only way to stop iteration once we hit the "included" bound 0 is to
-        // keep track of the fact and exit in the next iteration. This is because
-        // we use unsigned indices and thus we cannot go lower than 0.
-        if let Bound::Included(end) = self.end {
-            if pos == end {
-                self.done = true
-            };
-        };
-
-        if match self.end {
-            Bound::Excluded(end) => self.dir.is_in_range(pos, end),
-            Bound::Included(end) => self.dir.is_in_range(pos, end) || self.done,
-            Bound::Unbounded => true,
-        } {
-            Some(pos)
-        } else {
-            None
         }
-    }
-}
 
-/// Add an unsigned integer to an unsigned base.
-///
-/// Uses saturated arithmetic since the array bounds cannot be
-/// bigger than the usize range.
-///
-/// Returns None on underflow.
-fn add_delta(n: usize, delta: isize) -> Option<usize> {
-    if delta >= 0 {
-        Some(n.saturating_add(delta as usize))
-    } else {
-        let r = n.wrapping_add(delta as usize);
-        // return any underflow.
-        if r > n {
-            None
+        let is_in_range = if self.step >= 0 {
+            |a, b| a < b
         } else {
-            Some(r)
+            |a, b| a > b
+        };
+        let i = self.i;
+        self.i += self.step;
+
+        if is_in_range(i, self.end) {
+            Some(i as usize)
+        } else {
+            None
         }
     }
 }
@@ -296,52 +218,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn demo() {
-        const LEN: usize = 5;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
-
-        assert_eq!(s(None, None, None), vec![0, 1, 2, 3, 4]);
-        assert_eq!(s(Some(0), Some(5), None), vec![0, 1, 2, 3, 4]);
-        assert_eq!(s(Some(0), Some(4), None), vec![0, 1, 2, 3]);
-        assert_eq!(s(Some(1), None, None), vec![1, 2, 3, 4]);
-        assert_eq!(s(None, Some(4), None), vec![0, 1, 2, 3]);
-        assert_eq!(s(None, Some(-1), None), vec![0, 1, 2, 3]);
-        assert_eq!(s(None, Some(-2), None), vec![0, 1, 2]);
-        assert_eq!(s(Some(-2), Some(-1), None), vec![3]);
-        assert_eq!(s(Some(-1), None, None), vec![4]);
-
-        assert_eq!(s(None, None, Some(2)), vec![0, 2, 4]);
-
-        assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
-        assert_eq!(s(Some(4), None, Some(-1)), vec![4, 3, 2, 1, 0]);
-        assert_eq!(s(Some(4), Some(-6), Some(-1)), vec![4, 3, 2, 1, 0]);
-        assert_eq!(s(Some(4), Some(0), Some(-1)), vec![4, 3, 2, 1]);
-        assert_eq!(s(Some(4), Some(-5), Some(-1)), vec![4, 3, 2, 1]);
-        assert_eq!(s(Some(4), None, Some(0)), vec![]);
-
-        assert_eq!(s(Some(isize::MIN + 1), None, None), vec![0, 1, 2, 3, 4]);
-        assert_eq!(s(None, Some(isize::MAX), None), vec![0, 1, 2, 3, 4]);
-        assert_eq!(s(None, None, Some(100)), vec![0]);
-        assert_eq!(s(None, None, Some(isize::MAX)), vec![0]);
-
-        assert_eq!(s(Some(0), Some(6), Some(1)), vec![0, 1, 2, 3, 4]);
-        assert_eq!(s(Some(6), Some(0), Some(-1)), vec![4, 3, 2, 1]);
-        assert_eq!(s(None, Some(0), Some(-1)), vec![4, 3, 2, 1]);
-
-        assert_eq!(s(None, Some(-1), None), vec![0, 1, 2, 3]);
-        assert_eq!(s(None, Some(-2), None), vec![0, 1, 2]);
-        assert_eq!(s(None, Some(-3), None), vec![0, 1]);
-        assert_eq!(s(None, Some(-4), None), vec![0]);
-        assert_eq!(s(None, Some(-5), None), vec![]);
-        assert_eq!(s(None, Some(-6), None), vec![]);
-    }
-
-    #[test]
-    fn backwards() {
+    fn positive() {
         const LEN: usize = 4;
 
         fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
@@ -349,9 +226,288 @@ mod test {
             Slice { start, end, step }.indices(LEN).collect()
         }
 
-        assert_eq!(s(None, None, Some(-2)), vec![3, 1]);
-        assert_eq!(s(Some(2), Some(-113667776004), Some(-1)), vec![2, 1, 0]);
-        assert_eq!(s(Some(-4), Some(-5), Some(-1)), vec![0]);
+        assert_eq!(s(None, None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(0), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(1), None, None), vec![1, 2, 3]);
+        assert_eq!(s(Some(2), None, None), vec![2, 3]);
+        assert_eq!(s(Some(3), None, None), vec![3]);
+        assert_eq!(s(Some(4), None, None), vec![]);
+        assert_eq!(s(Some(5), None, None), vec![]);
+
+        assert_eq!(s(Some(0), Some(4), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(1), Some(4), None), vec![1, 2, 3]);
+        assert_eq!(s(Some(2), Some(4), None), vec![2, 3]);
+        assert_eq!(s(Some(3), Some(4), None), vec![3]);
+        assert_eq!(s(Some(4), Some(4), None), vec![]);
+        assert_eq!(s(Some(5), Some(4), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(3), None), vec![0, 1, 2]);
+        assert_eq!(s(Some(1), Some(3), None), vec![1, 2]);
+        assert_eq!(s(Some(2), Some(3), None), vec![2]);
+        assert_eq!(s(Some(3), Some(3), None), vec![]);
+        assert_eq!(s(Some(4), Some(3), None), vec![]);
+        assert_eq!(s(Some(5), Some(3), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(2), None), vec![0, 1]);
+        assert_eq!(s(Some(1), Some(2), None), vec![1]);
+        assert_eq!(s(Some(2), Some(2), None), vec![]);
+        assert_eq!(s(Some(3), Some(2), None), vec![]);
+        assert_eq!(s(Some(4), Some(2), None), vec![]);
+        assert_eq!(s(Some(5), Some(2), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(1), None), vec![0]);
+        assert_eq!(s(Some(1), Some(1), None), vec![]);
+        assert_eq!(s(Some(2), Some(1), None), vec![]);
+        assert_eq!(s(Some(3), Some(1), None), vec![]);
+        assert_eq!(s(Some(4), Some(1), None), vec![]);
+        assert_eq!(s(Some(5), Some(1), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(0), None), vec![]);
+        assert_eq!(s(Some(1), Some(0), None), vec![]);
+        assert_eq!(s(Some(2), Some(0), None), vec![]);
+        assert_eq!(s(Some(3), Some(0), None), vec![]);
+        assert_eq!(s(Some(4), Some(0), None), vec![]);
+        assert_eq!(s(Some(5), Some(0), None), vec![]);
+    }
+
+    #[test]
+    fn negative_start() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(-113667776004), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-6), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-5), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-4), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-3), None, None), vec![1, 2, 3]);
+        assert_eq!(s(Some(-2), None, None), vec![2, 3]);
+        assert_eq!(s(Some(-1), None, None), vec![3]);
+
+        assert_eq!(s(Some(-5), Some(4), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-4), Some(4), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(-3), Some(4), None), vec![1, 2, 3]);
+        assert_eq!(s(Some(-2), Some(4), None), vec![2, 3]);
+        assert_eq!(s(Some(-1), Some(4), None), vec![3]);
+
+        assert_eq!(s(Some(-5), Some(3), None), vec![0, 1, 2]);
+        assert_eq!(s(Some(-4), Some(3), None), vec![0, 1, 2]);
+        assert_eq!(s(Some(-3), Some(3), None), vec![1, 2]);
+        assert_eq!(s(Some(-2), Some(3), None), vec![2]);
+        assert_eq!(s(Some(-1), Some(3), None), vec![]);
+
+        assert_eq!(s(Some(-5), Some(2), None), vec![0, 1]);
+        assert_eq!(s(Some(-4), Some(2), None), vec![0, 1]);
+        assert_eq!(s(Some(-3), Some(2), None), vec![1]);
+        assert_eq!(s(Some(-2), Some(2), None), vec![]);
+        assert_eq!(s(Some(-1), Some(2), None), vec![]);
+
+        assert_eq!(s(Some(-5), Some(1), None), vec![0]);
+        assert_eq!(s(Some(-4), Some(1), None), vec![0]);
+        assert_eq!(s(Some(-3), Some(1), None), vec![]);
+        assert_eq!(s(Some(-2), Some(1), None), vec![]);
+        assert_eq!(s(Some(-1), Some(1), None), vec![]);
+
+        assert_eq!(s(Some(-5), Some(0), None), vec![]);
+        assert_eq!(s(Some(-4), Some(0), None), vec![]);
+        assert_eq!(s(Some(-3), Some(0), None), vec![]);
+        assert_eq!(s(Some(-2), Some(0), None), vec![]);
+        assert_eq!(s(Some(-1), Some(0), None), vec![]);
+    }
+
+    #[test]
+    fn negative_end() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(None, None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(0), None, None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(1), None, None), vec![1, 2, 3]);
+        assert_eq!(s(Some(2), None, None), vec![2, 3]);
+        assert_eq!(s(Some(3), None, None), vec![3]);
+        assert_eq!(s(Some(4), None, None), vec![]);
+        assert_eq!(s(Some(5), None, None), vec![]);
+
+        assert_eq!(s(Some(0), Some(4), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(1), Some(4), None), vec![1, 2, 3]);
+        assert_eq!(s(Some(2), Some(4), None), vec![2, 3]);
+        assert_eq!(s(Some(3), Some(4), None), vec![3]);
+        assert_eq!(s(Some(4), Some(4), None), vec![]);
+        assert_eq!(s(Some(5), Some(4), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(-1), None), vec![0, 1, 2]);
+        assert_eq!(s(Some(1), Some(-1), None), vec![1, 2]);
+        assert_eq!(s(Some(2), Some(-1), None), vec![2]);
+        assert_eq!(s(Some(3), Some(-1), None), vec![]);
+        assert_eq!(s(Some(4), Some(-1), None), vec![]);
+        assert_eq!(s(Some(5), Some(-1), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(-2), None), vec![0, 1]);
+        assert_eq!(s(Some(1), Some(-2), None), vec![1]);
+        assert_eq!(s(Some(2), Some(-2), None), vec![]);
+        assert_eq!(s(Some(3), Some(-2), None), vec![]);
+        assert_eq!(s(Some(4), Some(-2), None), vec![]);
+        assert_eq!(s(Some(5), Some(-2), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(-3), None), vec![0]);
+        assert_eq!(s(Some(1), Some(-3), None), vec![]);
+        assert_eq!(s(Some(2), Some(-3), None), vec![]);
+        assert_eq!(s(Some(3), Some(-3), None), vec![]);
+        assert_eq!(s(Some(4), Some(-3), None), vec![]);
+        assert_eq!(s(Some(5), Some(-3), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(-4), None), vec![]);
+        assert_eq!(s(Some(1), Some(-4), None), vec![]);
+        assert_eq!(s(Some(2), Some(-4), None), vec![]);
+        assert_eq!(s(Some(3), Some(-4), None), vec![]);
+        assert_eq!(s(Some(4), Some(-4), None), vec![]);
+        assert_eq!(s(Some(5), Some(-4), None), vec![]);
+
+        assert_eq!(s(Some(0), Some(-5), None), vec![]);
+        assert_eq!(s(Some(1), Some(-5), None), vec![]);
+        assert_eq!(s(Some(2), Some(-5), None), vec![]);
+        assert_eq!(s(Some(3), Some(-5), None), vec![]);
+        assert_eq!(s(Some(4), Some(-5), None), vec![]);
+        assert_eq!(s(Some(5), Some(-5), None), vec![]);
+
+        assert_eq!(s(Some(5), Some(-113667776004), None), vec![]);
+    }
+
+    #[test]
+    fn oob() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(0), Some(6), None), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(1), Some(6), None), vec![1, 2, 3]);
+        assert_eq!(s(Some(2), Some(6), None), vec![2, 3]);
+        assert_eq!(s(Some(3), Some(6), None), vec![3]);
+        assert_eq!(s(Some(4), Some(6), None), vec![]);
+        assert_eq!(s(Some(5), Some(6), None), vec![]);
+        assert_eq!(s(Some(4294967296), Some(17179869184), None), vec![]);
+    }
+
+    #[test]
+    fn step() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(0), Some(4), Some(1)), vec![0, 1, 2, 3]);
+        assert_eq!(s(Some(0), Some(4), Some(2)), vec![0, 2]);
+        assert_eq!(s(Some(1), Some(4), Some(2)), vec![1, 3]);
+        assert_eq!(s(Some(2), Some(4), Some(2)), vec![2]);
+        assert_eq!(s(Some(3), Some(4), Some(2)), vec![3]);
+        assert_eq!(s(Some(4), Some(4), Some(2)), vec![]);
+
+        assert_eq!(s(Some(0), Some(4), Some(17179869184)), vec![0]);
+        assert_eq!(s(Some(1), Some(4), Some(17179869184)), vec![1]);
+        assert_eq!(s(Some(2), Some(4), Some(17179869184)), vec![2]);
+        assert_eq!(s(Some(3), Some(4), Some(17179869184)), vec![3]);
+        assert_eq!(s(Some(4), Some(4), Some(17179869184)), vec![]);
+    }
+
+    #[test]
+    fn zero_step() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(3), None, Some(0)), vec![]);
+    }
+
+    #[test]
+    fn negative_step() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(3), None, Some(-1)), vec![3, 2, 1, 0]);
+        assert_eq!(s(Some(3), Some(0), Some(-1)), vec![3, 2, 1]);
+        assert_eq!(s(Some(3), Some(1), Some(-1)), vec![3, 2]);
+        assert_eq!(s(Some(3), Some(2), Some(-1)), vec![3]);
+        assert_eq!(s(Some(3), Some(3), Some(-1)), vec![]);
+
+        assert_eq!(s(Some(3), None, Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(3), Some(0), Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(3), Some(1), Some(-2)), vec![3]);
+        assert_eq!(s(Some(3), Some(2), Some(-2)), vec![3]);
+        assert_eq!(s(Some(3), Some(3), Some(-2)), vec![]);
+
+        assert_eq!(s(Some(3), None, Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(0), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(1), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(2), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(3), Some(-17179869184)), vec![]);
+
+        assert_eq!(s(Some(17179869184), None, Some(-1)), vec![3, 2, 1, 0]);
+        assert_eq!(s(Some(5), None, Some(-1)), vec![3, 2, 1, 0]);
+        assert_eq!(s(Some(4), None, Some(-1)), vec![3, 2, 1, 0]);
+    }
+
+    #[test]
+    fn negative_step_negative_start() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(-1), None, Some(-1)), vec![3, 2, 1, 0]);
+        assert_eq!(s(Some(-2), None, Some(-1)), vec![2, 1, 0]);
+        assert_eq!(s(Some(-3), None, Some(-1)), vec![1, 0]);
+        assert_eq!(s(Some(-4), None, Some(-1)), vec![0]);
+        assert_eq!(s(Some(-5), None, Some(-1)), vec![]);
+        assert_eq!(s(Some(-17179869184), None, Some(-1)), vec![]);
+    }
+
+    #[test]
+    fn negative_step_negative_end() {
+        const LEN: usize = 4;
+
+        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(LEN).collect()
+        }
+
+        assert_eq!(s(Some(3), Some(-5), Some(-1)), vec![3, 2, 1, 0]);
+        assert_eq!(s(Some(3), Some(-4), Some(-1)), vec![3, 2, 1]);
+        assert_eq!(s(Some(3), Some(-3), Some(-1)), vec![3, 2]);
+        assert_eq!(s(Some(3), Some(-2), Some(-1)), vec![3]);
+        assert_eq!(s(Some(3), Some(-1), Some(-1)), vec![]);
+
+        assert_eq!(s(Some(3), Some(-5), Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(3), Some(-4), Some(-2)), vec![3, 1]);
+        assert_eq!(s(Some(3), Some(-3), Some(-2)), vec![3]);
+        assert_eq!(s(Some(3), Some(-2), Some(-2)), vec![3]);
+        assert_eq!(s(Some(3), Some(-1), Some(-2)), vec![]);
+
+        assert_eq!(s(Some(3), Some(-5), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(-4), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(-3), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(-2), Some(-17179869184)), vec![3]);
+        assert_eq!(s(Some(3), Some(-1), Some(-17179869184)), vec![]);
     }
 
     #[test]
@@ -364,30 +520,18 @@ mod test {
         }
 
         assert_eq!(s(None, None, None), vec![]);
+        assert_eq!(s(None, None, Some(-1)), vec![]);
     }
 
     #[test]
-    fn ensure() {
-        assert_eq!(ensure_within(0, 0..3), Some(0));
-        assert_eq!(ensure_within(1, 0..3), Some(1));
-        assert_eq!(ensure_within(2, 0..3), Some(2));
-        assert_eq!(ensure_within(3, 0..3), None);
-        assert_eq!(ensure_within(4, 0..3), None);
-    }
-
-    #[test]
-    fn abs() {
-        assert_eq!(Index::Head(0).abs(3, &Forwards), Some(0));
-        assert_eq!(Index::Head(1).abs(3, &Forwards), Some(1));
-        assert_eq!(Index::Head(2).abs(3, &Forwards), Some(2));
-        assert_eq!(Index::Head(3).abs(3, &Forwards), None);
-
-        assert_eq!(Index::Tail(1).abs(3, &Forwards), Some(2));
-        assert_eq!(Index::Tail(2).abs(3, &Forwards), Some(1));
-        assert_eq!(Index::Tail(3).abs(3, &Forwards), Some(0));
-        assert_eq!(Index::Tail(4).abs(3, &Forwards), Some(0));
-
-        assert_eq!(Index::Tail(4).abs(3, &Backwards), None);
+    fn test_clamp() {
+        let bounds = 1..=3;
+        assert_eq!(clamp(0, &bounds), 1);
+        assert_eq!(clamp(1, &bounds), 1);
+        assert_eq!(clamp(2, &bounds), 2);
+        assert_eq!(clamp(3, &bounds), 3);
+        assert_eq!(clamp(4, &bounds), 3);
+        assert_eq!(clamp(5, &bounds), 3);
     }
 
     #[test]
