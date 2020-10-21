@@ -90,91 +90,53 @@ impl fmt::Display for Index {
     }
 }
 
+impl Index {
+    /// to_bound transforms an index slice parameter into an array bound.
+    /// An array bound can be -1 in order to represent the exclusive lower
+    /// bound 0.
+    ///
+    /// This impl won't work if size_of<usize> >= 16.
+    /// 64 bits of address space should be enough for everybody.
+    fn to_bound(&self, len: i128, r: &RangeInclusive<i128>) -> Option<i128> {
+        match self {
+            &Head(n) => Some(n as i128),
+            &Tail(n) => Some(len - (n as i128)),
+            Default => None,
+        }
+        .map(|n| clamp(n, r))
+    }
+}
+
+fn clamp<T: Ord + Copy>(n: T, r: &RangeInclusive<T>) -> T {
+    let (start, end) = (*r.start(), *r.end());
+    n.max(start).min(end)
+}
+
 impl Slice {
     /// Returns an iterator that yields the elements that match the slice expression.
     pub fn apply<'a, T>(&self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
         self.indices(arr.len()).map(move |i| &arr[i])
     }
-    /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(&self, len: usize) -> impl Iterator<Item = usize> {
-        self.to_sslice().indices(len)
-    }
 
-    fn to_sslice(&self) -> SSlice {
-        SSlice {
-            start: self.start.to_signed(),
-            end: self.end.to_signed(),
-            step: self.step.map(|s| s as i128),
-        }
-    }
-}
-
-impl Index {
-    fn to_signed(&self) -> Option<i128> {
-        match self {
-            &Head(n) => Some(n as i128),
-            &Tail(n) => Some(-(n as i128)),
-            Default => None,
-        }
-    }
-}
-
-/// A SSlice is a slice implemented using signed arithmetics. It uses a signed type that
-/// must be able to represent usize. This impl won't work if size_of<usize> >= 16.
-/// 64 bits of address space should be enough for everybody.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SSlice {
-    start: Option<i128>,
-    end: Option<i128>,
-    step: Option<i128>,
-}
-
-impl SSlice {
     /// Returns an iterator that yields the indices that match the slice expression.
     fn indices(&self, ulen: usize) -> impl Iterator<Item = usize> {
         let len = ulen as i128;
-
-        if len == 0 {
-            return Iter {
-                i: 0,
-                end: 0,
-                step: 0,
-            };
-        }
-
         let step = self.step.unwrap_or(1);
 
-        let (def_start, def_end) = if step >= 0 {
-            (0, len)
-        } else {
-            (len - 1, -1)
-        };
+        let (def_start, def_end) = if step >= 0 { (0, len) } else { (len - 1, -1) };
 
-        let (min, max) = if step >= 0 {
-            (def_start, def_end)
+        let bounds = if step >= 0 {
+            def_start..=def_end
         } else {
-            // when iterating backwards, start becomes the higher bound
-            // and end becomes the lower bound. In order to iterate
-            // down to the 0th index, we must allow -1 as the non
-            // inclusive lower bound (in the same way as we allow "len"
-            // as the upper bound when iterating forward).
-            (def_end, def_start)
+            def_end..=def_start
         };
-
-        // negative slice parameters are relative to the end of the array.
-        let to_index = |n: i128| if n >= 0 { n } else { len + n };
 
         Iter {
-            i: clamp(self.start.map(to_index).unwrap_or(def_start), min..=max),
-            end: clamp(self.end.map(to_index).unwrap_or(def_end), min..=max),
-            step,
+            i: self.start.to_bound(len, &bounds).unwrap_or(def_start),
+            end: self.end.to_bound(len, &bounds).unwrap_or(def_end),
+            step: step as i128,
         }
     }
-}
-
-fn clamp<T: Ord + Copy>(n: T, r: RangeInclusive<T>) -> T {
-    let (start, end) = (*r.start(), *r.end());
-    n.max(start).min(end)
 }
 
 struct Iter {
@@ -563,12 +525,13 @@ mod test {
 
     #[test]
     fn test_clamp() {
-        assert_eq!(clamp(0, 1..=3), 1);
-        assert_eq!(clamp(1, 1..=3), 1);
-        assert_eq!(clamp(2, 1..=3), 2);
-        assert_eq!(clamp(3, 1..=3), 3);
-        assert_eq!(clamp(4, 1..=3), 3);
-        assert_eq!(clamp(5, 1..=3), 3);
+        let bounds = 1..=3;
+        assert_eq!(clamp(0, &bounds), 1);
+        assert_eq!(clamp(1, &bounds), 1);
+        assert_eq!(clamp(2, &bounds), 2);
+        assert_eq!(clamp(3, &bounds), 3);
+        assert_eq!(clamp(4, &bounds), 3);
+        assert_eq!(clamp(5, &bounds), 3);
     }
 
     #[test]
