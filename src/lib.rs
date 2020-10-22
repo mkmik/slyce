@@ -223,14 +223,16 @@ impl Default for Index {
 mod test {
     use super::*;
 
+    fn slicer(len: usize) -> impl Fn(Option<isize>, Option<isize>, Option<isize>) -> Vec<usize> {
+        move |start: Option<isize>, end: Option<isize>, step: Option<isize>| {
+            let (start, end) = (start.into(), end.into());
+            Slice { start, end, step }.indices(len).collect()
+        }
+    }
+
     #[test]
     fn positive() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(None, None, None), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(0), None, None), vec![0, 1, 2, 3]);
@@ -278,12 +280,7 @@ mod test {
 
     #[test]
     fn negative_start() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(-113667776004), None, None), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(-6), None, None), vec![0, 1, 2, 3]);
@@ -326,12 +323,7 @@ mod test {
 
     #[test]
     fn negative_end() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(None, None, None), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(0), None, None), vec![0, 1, 2, 3]);
@@ -388,12 +380,7 @@ mod test {
 
     #[test]
     fn oob() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(0), Some(6), None), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(1), Some(6), None), vec![1, 2, 3]);
@@ -406,12 +393,7 @@ mod test {
 
     #[test]
     fn step() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(0), Some(4), Some(1)), vec![0, 1, 2, 3]);
         assert_eq!(s(Some(0), Some(4), Some(2)), vec![0, 2]);
@@ -429,24 +411,14 @@ mod test {
 
     #[test]
     fn zero_step() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(3), None, Some(0)), vec![]);
     }
 
     #[test]
     fn negative_step() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(3), None, Some(-1)), vec![3, 2, 1, 0]);
         assert_eq!(s(Some(3), Some(0), Some(-1)), vec![3, 2, 1]);
@@ -473,12 +445,7 @@ mod test {
 
     #[test]
     fn negative_step_negative_start() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(-1), None, Some(-1)), vec![3, 2, 1, 0]);
         assert_eq!(s(Some(-2), None, Some(-1)), vec![2, 1, 0]);
@@ -490,12 +457,7 @@ mod test {
 
     #[test]
     fn negative_step_negative_end() {
-        const LEN: usize = 4;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(4);
 
         assert_eq!(s(Some(3), Some(-5), Some(-1)), vec![3, 2, 1, 0]);
         assert_eq!(s(Some(3), Some(-4), Some(-1)), vec![3, 2, 1]);
@@ -518,12 +480,7 @@ mod test {
 
     #[test]
     fn empty_array() {
-        const LEN: usize = 0;
-
-        fn s(start: Option<isize>, end: Option<isize>, step: Option<isize>) -> Vec<usize> {
-            let (start, end) = (start.into(), end.into());
-            Slice { start, end, step }.indices(LEN).collect()
-        }
+        let s = slicer(0);
 
         assert_eq!(s(None, None, None), vec![]);
         assert_eq!(s(None, None, Some(-1)), vec![]);
