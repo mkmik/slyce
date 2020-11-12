@@ -1,12 +1,55 @@
-//! Slyce implements a python-like slicer for rust.
+//! Slyce implements a python-like slicer for rust. It selects zero or more
+//! elements from an input array and returns these elements, in the order
+//! selected, as an output array.
 //!
-//! Indices can be addressed as absolute positions or relative to the end of the array (Tail).
-//! Out of bound indices are ignored.
+//! A slice selects array elements between an inclusive `start` index and an
+//! exclusive `end` index, incrementing by a `step` value.
 //!
-//! Slice indices are represented with an enum that wraps the full `usize` range, but also
-//! captures the possibility of a "negative" or "backward" index.
+//! Indices, of type `Index`, can be relative to the start of the array (Head), with Head(0)
+//! denoting the first element of a non-empty array, or relative to the end
+//! of the array (Tail), with Tail(1) denoting the last element of a non-empty
+//! array.
+//!
+//! The default value for `step` is `1`.  The default values for `start`
+//! and `end` depend on the sign of `step`, as follows (where `len` is the length
+//! of the input array):
+//! <table class="center" style="width:400px;margin-left:100px">
+//!   <thead>
+//!     <tr>
+//!       <th class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Condition</th>
+//!       <th class="text-left" rowspan="1" colspan="1" style="border:1px solid black">start</th>
+//!       <th class="text-left" rowspan="1" colspan="1" style="border:1px solid black">end</th>
+//!     </tr>
+//!   </thead>
+//!   <tbody>
+//!     <tr>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">step &gt;= 0</td>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Head(0)</td>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Head(len)</td>
+//!     </tr>
+//!     <tr>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">step &lt; 0</td>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Head(len - 1)</td>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Tail(len + 1)</td>
+//!     </tr>
+//!   </tbody>
+//!   <caption>Default array slice start and end values</caption>
+//! </table>
+//!
+//! If `step` is zero, the resultant array is empty.
+//!
+//! If `step` is non-zero, iteration begins at the array index of `start` incrementing by `step` while
+//! the array index of `end` has not been reached, with `end` itself excluded from the iteration. At
+//! each iteration step, if the iteration value is inside the bounds of the array, the corresponding
+//! element is selected and if the iteration value is outside the bounds of the array no element is
+//! selected.
+//!
 //! This crate provides a few implementations of `From<T> for Index` for common types,
 //! so you can pass numbers and options instead of Index (just call `.into()`).
+//! An integer index value is equivalent to specifying a position
+//! relative to the start or end of the array, depending on whether the value is
+//! non-negative or negative, respectively. For example, `0` is
+//! equivalent to `Head(0)` and `-1` is equivalent to `Tail(1)`.
 //!
 //! # Example
 //! ```
@@ -72,8 +115,10 @@ impl fmt::Display for Slice {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Index {
     /// Position in the array relative to the start of the array (i.e. absolute position).
+    /// Head(0) is the position of the first element of a non-empty array.
     Head(usize),
-    /// Position in the array relative to the end of the array.
+    /// Position in the array relative to the end of the array. Tail(1) is the position of the
+    /// last element of a non-empty array.
     Tail(usize),
     /// Either the first or the last element of the array, depending on the sign of `step`.
     Default,
