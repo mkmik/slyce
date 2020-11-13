@@ -151,6 +151,16 @@ impl Index {
         }
         .map(|n| clamp(n, r))
     }
+
+    // rev produces an index which when applied to an array gives the same
+    // result as the original index applied to the same array in reverse order.
+    fn rev(&self) -> Index {
+        match self {
+            &Head(n) => Tail(n + 1),
+            &Tail(n) => Head(n - 1),
+            Default => Default,
+        }
+    }
 }
 
 fn clamp<T, R>(n: T, r: R) -> T
@@ -165,40 +175,60 @@ where
 
 impl Slice {
     /// Returns an iterator that yields the elements that match the slice expression.
-    pub fn apply<'a, T>(&self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
+    pub fn apply<'a, T>(&'a self, arr: &'a [T]) -> impl Iterator<Item = &'a T> + 'a {
         self.indices(arr.len()).map(move |i| &arr[i])
     }
 
+    /// Returns a slice which when applied to an array would select the same elements as the
+    /// original slice applied to the same array reversed.
+    fn rev(&self) -> Slice {
+        Slice {
+            start: self.start.rev(),
+            end: self.end.rev(),
+            step: Some(-self.step.unwrap_or(1)),
+        }
+    }
+
     /// Returns an iterator that yields the indices that match the slice expression.
-    fn indices(&self, ulen: usize) -> impl Iterator<Item = usize> {
-        let len = ulen as i128;
+    fn indices(&self, ulen: usize) -> Iter {
         let step = self.step.unwrap_or(1);
-
-        let (def_start, def_end) = if step >= 0 { (0, len) } else { (len - 1, -1) };
-
-        let bounds = if step >= 0 {
-            def_start..=def_end
-        } else {
-            def_end..=def_start
-        };
+        if step < 0 {
+            // reverse the index iterator produced by the reverse slice
+            return self.rev().indices(ulen).reverse(ulen);
+        }
+        let len = ulen as i128;
+        let bounds = 0..=len;
 
         Iter {
-            i: self.start.to_bound(len, &bounds).unwrap_or(def_start),
-            end: self.end.to_bound(len, &bounds).unwrap_or(def_end),
+            i: self.start.to_bound(len, &bounds).unwrap_or(0),
+            end: self.end.to_bound(len, &bounds).unwrap_or(len),
             step: step as i128,
         }
     }
 }
 
+/// An iterator that counts from an initial number until a final limit.
+/// The direction and stride of the iteration can be controlled by the step parameter.
+/// A zero step produces an empty iteration.
 struct Iter {
     i: i128,
     end: i128,
     step: i128,
 }
 
-/// An iterator that counts from an initial number until a final limit.
-/// The direction and stride of the iteration can be controlled by the step parameter.
-/// A zero step produces an empty iteration.
+impl Iter {
+    /// Returns an Iter which when used to index into an array of the given size, produces
+    /// the same elements as the original Iter when applied to the same array reversed,
+    /// but in reverse order.
+    fn reverse(&self, ulen: usize) -> Iter {
+        Iter {
+            i: ulen as i128 - 1 - self.i,
+            end: ulen as i128 - 1 - self.end,
+            step: -self.step,
+        }
+    }
+}
+
 impl Iterator for Iter {
     type Item = usize;
 
