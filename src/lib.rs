@@ -29,12 +29,15 @@
 //!     </tr>
 //!     <tr>
 //!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">step &lt; 0</td>
-//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Head(len - 1)</td>
+//!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Tail(1)</td>
 //!       <td class="text-left" rowspan="1" colspan="1" style="border:1px solid black">Tail(len + 1)</td>
 //!     </tr>
 //!   </tbody>
 //!   <caption>Default array slice start and end values</caption>
 //! </table>
+//!
+//! If `start` or `end` is `Head(n)` for `n >= len` or `Tail(m)` for `m >= len + 1`, then it is
+//! replaced by the default value for `start` or `end`, respectively.
 //!
 //! If `step` is zero, the resultant array is empty.
 //!
