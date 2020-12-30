@@ -210,11 +210,8 @@ impl Iterator for Iter {
             return None;
         }
 
-        let is_in_range = if self.step >= 0 {
-            |a, b| a < b
-        } else {
-            |a, b| a > b
-        };
+        let step = self.step;
+        let is_in_range = |a, b| if step >= 0 { a < b } else { a > b };
         let i = self.i;
         self.i += self.step;
 
