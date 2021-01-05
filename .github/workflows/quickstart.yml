@@ -12,6 +12,9 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [ stable, "1.43.0" ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -20,7 +23,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
           override: true
 
       - name: Run cargo check
@@ -31,6 +34,9 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [ stable, "1.43.0" ]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -39,7 +45,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
           override: true
 
       - name: Run cargo test
@@ -58,6 +64,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          # only lint using the latest stable
           toolchain: stable
           override: true
           components: rustfmt, clippy
