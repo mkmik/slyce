@@ -64,7 +64,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          # only lint using the latest stable
+          # lint using only the latest stable
           toolchain: stable
           override: true
           components: rustfmt, clippy
